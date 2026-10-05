@@ -28,4 +28,24 @@ export function authenticateAdmin(req, res, next) {
   }
 }
 
+export function isRequestFromAdmin(req) {
+  let token = null;
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.split(' ')[1];
+  } else if (req.cookies && req.cookies.admin_token) {
+    token = req.cookies.admin_token;
+  } else if (req.query && req.query.token) {
+    token = req.query.token;
+  }
+
+  if (!token) return false;
+  try {
+    jwt.verify(token, JWT_SECRET);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export { JWT_SECRET };

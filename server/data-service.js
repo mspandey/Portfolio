@@ -1160,3 +1160,473 @@ export async function getTableRecords(table, { orderBy = 'display_order', ascend
     return ascending ? (Number(valA) - Number(valB)) : (Number(valB) - Number(valA));
   });
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 15. PORTFOLIO ANALYTICS & ENGAGEMENT TRACKING
+// ══════════════════════════════════════════════════════════════════════════════
+
+let analyticsEventsCache = null;
+let lastAnalyticsSync = 0;
+let analyticsSaveTimeout = null;
+
+// Helper: Normalize referrer to friendly name
+export function normalizeReferrer(referrer) {
+  if (!referrer || typeof referrer !== 'string') return 'Direct';
+  try {
+    const trimmed = referrer.trim();
+    if (!trimmed) return 'Direct';
+    const url = new URL(trimmed.startsWith('http') ? trimmed : `https://${trimmed}`);
+    const host = url.hostname.toLowerCase();
+    if (host.includes('linkedin')) return 'LinkedIn';
+    if (host.includes('github')) return 'GitHub';
+    if (host.includes('google')) return 'Google';
+    if (host.includes('t.co') || host.includes('twitter') || host.includes('x.com')) return 'X / Twitter';
+    if (host.includes('youtube')) return 'YouTube';
+    if (host.includes('facebook') || host.includes('instagram')) return 'Meta / Instagram';
+    if (host.includes('reddit')) return 'Reddit';
+    if (host.includes('vercel')) return 'Vercel';
+    if (host === 'localhost' || host === '127.0.0.1') return 'Direct';
+    return host.replace(/^www\./, '');
+  } catch {
+    return 'Other';
+  }
+}
+
+async function loadAnalyticsEvents(forceRefresh = false) {
+  const now = Date.now();
+  if (analyticsEventsCache && !forceRefresh && (now - lastAnalyticsSync < 10000)) {
+    return analyticsEventsCache;
+  }
+
+  let events = [];
+
+  // 1. Try reading from Supabase Storage
+  if (isSupabaseConfigured()) {
+    try {
+      const buffer = await downloadFromStorage('portfolio-media', 'analytics/events.json');
+      if (buffer && buffer.length > 0) {
+        const cloudEvents = JSON.parse(buffer.toString('utf8'));
+        if (Array.isArray(cloudEvents)) {
+          events = cloudEvents;
+        }
+      }
+    } catch (err) {
+      // file might not exist yet on fresh deployment
+    }
+  }
+
+  // 2. If storage empty or offline, check SQLite
+  if (events.length === 0 && db) {
+    try {
+      const rows = db.prepare('SELECT * FROM analytics_events ORDER BY created_at DESC LIMIT 5000').all();
+      if (rows && rows.length > 0) {
+        events = rows.map((r) => ({
+          ...r,
+          metadata: safeParseJson(r.metadata_json, {}),
+        }));
+      }
+    } catch (sqlErr) {
+      // Table may not have been created yet
+    }
+  }
+
+  analyticsEventsCache = events;
+  lastAnalyticsSync = now;
+  return analyticsEventsCache;
+}
+
+async function flushAnalyticsToStorage() {
+  if (!analyticsEventsCache || !isSupabaseConfigured()) return;
+  try {
+    const payload = JSON.stringify(analyticsEventsCache.slice(0, 5000));
+    await uploadToStorage('portfolio-media', 'analytics/events.json', Buffer.from(payload, 'utf8'), 'application/json');
+  } catch (err) {
+    console.warn('⚠️ Supabase analytics sync note:', err.message);
+  }
+}
+
+function scheduleAnalyticsFlush() {
+  if (analyticsSaveTimeout) clearTimeout(analyticsSaveTimeout);
+  analyticsSaveTimeout = setTimeout(() => {
+    flushAnalyticsToStorage();
+  }, 2000);
+}
+
+export async function recordAnalyticsEvent({
+  eventType,
+  sessionId,
+  visitorId,
+  pagePath = '/',
+  projectId = null,
+  projectSlug = '',
+  projectTitle = '',
+  referrer = '',
+  deviceType = 'desktop',
+  country = '',
+  metadata = {},
+}) {
+  if (!eventType || !visitorId) {
+    throw new Error('Event type and visitor ID are required.');
+  }
+
+  const events = await loadAnalyticsEvents();
+  const id = `ae_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const cleanReferrer = String(referrer || '').trim();
+  const referrerDomain = normalizeReferrer(cleanReferrer);
+  const nowIso = new Date().toISOString();
+
+  // If project title missing but projectId present, look up from CMS projects
+  let resolvedTitle = projectTitle;
+  if (!resolvedTitle && (projectId || projectSlug)) {
+    try {
+      const cms = await getCmsState();
+      const match = (cms.projects || []).find((p) => String(p.id) === String(projectId) || p.slug === projectSlug);
+      if (match) resolvedTitle = match.title;
+    } catch {}
+  }
+
+  const newEvent = {
+    id,
+    event_type: eventType,
+    session_id: sessionId || visitorId,
+    visitor_id: visitorId,
+    page_path: pagePath || '/',
+    project_id: projectId ? Number(projectId) : null,
+    project_slug: projectSlug || '',
+    project_title: resolvedTitle || '',
+    referrer: cleanReferrer,
+    referrer_domain: referrerDomain,
+    device_type: ['desktop', 'mobile', 'tablet'].includes(deviceType) ? deviceType : 'desktop',
+    country: country || '',
+    metadata: metadata || {},
+    created_at: nowIso,
+  };
+
+  // Add to in-memory events (newest first)
+  events.unshift(newEvent);
+  if (events.length > 5000) {
+    events.length = 5000;
+  }
+
+  // Insert into SQLite
+  if (db) {
+    try {
+      const stmt = db.prepare(`
+        INSERT INTO analytics_events (
+          id, event_type, session_id, visitor_id, page_path,
+          project_id, project_slug, project_title, referrer, referrer_domain,
+          device_type, country, metadata_json, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      stmt.run(
+        newEvent.id,
+        newEvent.event_type,
+        newEvent.session_id,
+        newEvent.visitor_id,
+        newEvent.page_path,
+        newEvent.project_id,
+        newEvent.project_slug,
+        newEvent.project_title,
+        newEvent.referrer,
+        newEvent.referrer_domain,
+        newEvent.device_type,
+        newEvent.country,
+        JSON.stringify(newEvent.metadata),
+        newEvent.created_at
+      );
+    } catch (e) {
+      // Ignore SQLite write error in serverless read-only mode
+    }
+  }
+
+  // Attempt insert to Supabase Postgres if table exists
+  if (isSupabaseConfigured()) {
+    try {
+      const sb = getSupabase();
+      sb.from('analytics_events').insert({
+        id: newEvent.id,
+        event_type: newEvent.event_type,
+        session_id: newEvent.session_id,
+        visitor_id: newEvent.visitor_id,
+        page_path: newEvent.page_path,
+        project_id: newEvent.project_id,
+        project_slug: newEvent.project_slug,
+        project_title: newEvent.project_title,
+        referrer: newEvent.referrer,
+        referrer_domain: newEvent.referrer_domain,
+        device_type: newEvent.device_type,
+        country: newEvent.country,
+        metadata_json: newEvent.metadata,
+        created_at: newEvent.created_at,
+      }).then(() => {}).catch(() => {});
+    } catch {}
+  }
+
+  // Schedule storage flush
+  scheduleAnalyticsFlush();
+
+  return newEvent;
+}
+
+export async function getAnalyticsOverview(period = '7d') {
+  const events = await loadAnalyticsEvents(true);
+  const now = new Date();
+  let cutoff = new Date();
+
+  if (period === 'today') {
+    cutoff.setHours(0, 0, 0, 0);
+  } else if (period === '30d') {
+    cutoff = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  } else if (period === '90d') {
+    cutoff = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+  } else {
+    // default: 7d
+    cutoff = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  }
+
+  const cutoffTime = cutoff.getTime();
+  const periodEvents = events.filter((e) => new Date(e.created_at).getTime() >= cutoffTime);
+
+  // Global time windows for top cards
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  const startOfTodayTime = startOfToday.getTime();
+
+  const startOfWeek = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).getTime();
+  const startOfMonth = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).getTime();
+
+  // Metrics
+  const uniqueVisitorSet = new Set();
+  const visitorsTodaySet = new Set();
+  const visitorsWeekSet = new Set();
+  const visitorsMonthSet = new Set();
+
+  let totalViews = 0;
+  let resumeDownloads = 0;
+  let linkedinClicks = 0;
+  let githubClicks = 0;
+  let contactSubmissions = 0;
+  let projectViewsCount = 0;
+  let certificateViews = 0;
+  let certificateDownloads = 0;
+  let externalClicks = 0;
+
+  // For charts & breakdowns
+  const trafficSourcesMap = {};
+  const deviceMap = { desktop: 0, mobile: 0, tablet: 0 };
+  const countryMap = {};
+  const projectMap = {};
+
+  // All events calculate windowed visitors
+  events.forEach((e) => {
+    const t = new Date(e.created_at).getTime();
+    if (t >= startOfTodayTime) visitorsTodaySet.add(e.visitor_id);
+    if (t >= startOfWeek) visitorsWeekSet.add(e.visitor_id);
+    if (t >= startOfMonth) visitorsMonthSet.add(e.visitor_id);
+  });
+
+  // Calculate period specific metrics
+  periodEvents.forEach((e) => {
+    uniqueVisitorSet.add(e.visitor_id);
+
+    if (e.event_type === 'page_view') {
+      totalViews += 1;
+    } else if (e.event_type === 'resume_download') {
+      resumeDownloads += 1;
+    } else if (e.event_type === 'linkedin_click') {
+      linkedinClicks += 1;
+    } else if (e.event_type === 'github_click') {
+      githubClicks += 1;
+    } else if (e.event_type === 'contact_submit') {
+      contactSubmissions += 1;
+    } else if (e.event_type === 'project_view') {
+      projectViewsCount += 1;
+    } else if (e.event_type === 'certificate_view') {
+      certificateViews += 1;
+    } else if (e.event_type === 'certificate_download') {
+      certificateDownloads += 1;
+    } else if (e.event_type === 'external_link_click') {
+      externalClicks += 1;
+    }
+
+    // Traffic sources
+    const source = e.referrer_domain || 'Direct';
+    trafficSourcesMap[source] = (trafficSourcesMap[source] || 0) + 1;
+
+    // Devices
+    const dev = e.device_type || 'desktop';
+    if (deviceMap[dev] !== undefined) {
+      deviceMap[dev] += 1;
+    } else {
+      deviceMap.desktop += 1;
+    }
+
+    // Countries
+    if (e.country && e.country !== 'Unknown') {
+      countryMap[e.country] = (countryMap[e.country] || 0) + 1;
+    }
+
+    // Projects
+    if (e.project_title || e.project_slug || e.project_id) {
+      const projKey = e.project_title || e.project_slug || `Project #${e.project_id}`;
+      projectMap[projKey] = (projectMap[projKey] || 0) + 1;
+    }
+  });
+
+  // Device percentage calculation
+  const totalDeviceEvents = deviceMap.desktop + deviceMap.mobile + deviceMap.tablet;
+  const deviceBreakdown = {
+    desktop: {
+      count: deviceMap.desktop,
+      percent: totalDeviceEvents > 0 ? Math.round((deviceMap.desktop / totalDeviceEvents) * 100) : 0,
+    },
+    mobile: {
+      count: deviceMap.mobile,
+      percent: totalDeviceEvents > 0 ? Math.round((deviceMap.mobile / totalDeviceEvents) * 100) : 0,
+    },
+    tablet: {
+      count: deviceMap.tablet,
+      percent: totalDeviceEvents > 0 ? Math.round((deviceMap.tablet / totalDeviceEvents) * 100) : 0,
+    },
+  };
+
+  // Top Traffic Sources sorted
+  const topSources = Object.entries(trafficSourcesMap)
+    .map(([source, count]) => ({ source, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 6);
+
+  // Top Countries sorted
+  const topCountries = Object.entries(countryMap)
+    .map(([country, count]) => ({ country, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 6);
+
+  // Most Viewed Projects sorted
+  const topProjects = Object.entries(projectMap)
+    .map(([title, views]) => ({ title, views }))
+    .sort((a, b) => b.views - a.views)
+    .slice(0, 8);
+
+  // Generate Time-Series Graph Buckets
+  const chartData = generateChartData(period, periodEvents, now);
+
+  return {
+    period,
+    summary: {
+      unique_visitors: uniqueVisitorSet.size,
+      total_views: totalViews,
+      visitors_today: visitorsTodaySet.size,
+      visitors_this_week: visitorsWeekSet.size,
+      visitors_this_month: visitorsMonthSet.size,
+      resume_downloads: resumeDownloads,
+      linkedin_clicks: linkedinClicks,
+      github_clicks: githubClicks,
+      contact_submissions: contactSubmissions,
+      project_views: projectViewsCount,
+      certificate_views: certificateViews,
+      certificate_downloads: certificateDownloads,
+    },
+    recruiter_signals: {
+      resume_downloads: resumeDownloads,
+      linkedin_clicks: linkedinClicks,
+      github_clicks: githubClicks,
+      project_interactions: projectViewsCount + externalClicks,
+      contact_submissions: contactSubmissions,
+    },
+    chart: chartData,
+    traffic_sources: topSources,
+    device_breakdown: deviceBreakdown,
+    countries: topCountries,
+    top_projects: topProjects,
+    total_events_recorded: periodEvents.length,
+    generated_at: new Date().toISOString(),
+  };
+}
+
+// Generate bucketing for the visual SVG graph
+function generateChartData(period, events, now) {
+  const buckets = [];
+
+  if (period === 'today') {
+    // 24 Hourly buckets
+    const startOfDay = new Date(now);
+    startOfDay.setHours(0, 0, 0, 0);
+
+    for (let h = 0; h < 24; h++) {
+      const bucketDate = new Date(startOfDay.getTime() + h * 3600 * 1000);
+      const label = `${String(h).padStart(2, '0')}:00`;
+      buckets.push({
+        label,
+        key: label,
+        date: bucketDate.toISOString().slice(0, 10),
+        visitorsSet: new Set(),
+        views: 0,
+      });
+    }
+
+    events.forEach((e) => {
+      const d = new Date(e.created_at);
+      const h = d.getHours();
+      if (buckets[h]) {
+        buckets[h].visitorsSet.add(e.visitor_id);
+        if (e.event_type === 'page_view') buckets[h].views += 1;
+      }
+    });
+  } else {
+    // Daily buckets (7d, 30d, 90d)
+    const numDays = period === '90d' ? 90 : period === '30d' ? 30 : 7;
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const bucketMap = {};
+
+    for (let i = numDays - 1; i >= 0; i--) {
+      const d = new Date(now.getTime() - i * 24 * 3600 * 1000);
+      const dateStr = d.toISOString().slice(0, 10);
+      const dayName = dayNames[d.getDay()];
+      const label = numDays === 7 ? dayName : `${d.getMonth() + 1}/${d.getDate()}`;
+      const bucket = {
+        label,
+        date: dateStr,
+        visitorsSet: new Set(),
+        views: 0,
+      };
+      buckets.push(bucket);
+      bucketMap[dateStr] = bucket;
+    }
+
+    events.forEach((e) => {
+      const dateStr = e.created_at.slice(0, 10);
+      if (bucketMap[dateStr]) {
+        bucketMap[dateStr].visitorsSet.add(e.visitor_id);
+        if (e.event_type === 'page_view') bucketMap[dateStr].views += 1;
+      }
+    });
+  }
+
+  // Convert visitorsSet to count
+  return buckets.map((b) => ({
+    label: b.label,
+    date: b.date,
+    visitors: b.visitorsSet.size,
+    views: b.views,
+  }));
+}
+
+export async function clearAnalyticsEvents() {
+  analyticsEventsCache = [];
+  lastAnalyticsSync = Date.now();
+  if (db) {
+    try {
+      db.prepare('DELETE FROM analytics_events').run();
+    } catch {}
+  }
+  if (isSupabaseConfigured()) {
+    try {
+      await uploadToStorage('portfolio-media', 'analytics/events.json', Buffer.from('[]', 'utf8'), 'application/json');
+      const sb = getSupabase();
+      await sb.from('analytics_events').delete().neq('id', '');
+    } catch {}
+  }
+  return { success: true };
+}
+

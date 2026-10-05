@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import ScrollReveal from '../ui/ScrollReveal';
 import { sendContactMessage } from '../../api/client';
+import { trackEvent } from '../../api/tracker.js';
 
 export default function ContactSection({ data }) {
   const site = data?.siteSettings || {};
@@ -23,6 +24,8 @@ export default function ContactSection({ data }) {
     setStatus('');
     try {
       await sendContactMessage(form);
+      // Track contact submission without transmitting any PII
+      trackEvent('contact_submit');
       setStatus('success:Your message has been sent! I\'ll get back to you soon.');
       setForm({ name: '', email: '', subject: '', message: '' });
     } catch (err) {
@@ -50,25 +53,47 @@ export default function ContactSection({ data }) {
           <ScrollReveal delay={80}>
             <div className="contact-info">
               {site.email && (
-                <a href={`mailto:${site.email}`} className="contact-item">
+                <a
+                  href={`mailto:${site.email}`}
+                  className="contact-item"
+                  onClick={() => trackEvent('external_link_click', { destination: 'email' })}
+                >
                   <span className="contact-item-icon" aria-hidden="true">✉</span>
                   <span>{site.email}</span>
                 </a>
               )}
               {site.linkedin && (
-                <a href={site.linkedin} target="_blank" rel="noopener noreferrer" className="contact-item">
+                <a
+                  href={site.linkedin}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="contact-item"
+                  onClick={() => trackEvent('linkedin_click', { url: site.linkedin })}
+                >
                   <span className="contact-item-icon" aria-hidden="true">in</span>
                   <span>LinkedIn</span>
                 </a>
               )}
               {site.github && (
-                <a href={site.github} target="_blank" rel="noopener noreferrer" className="contact-item">
+                <a
+                  href={site.github}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="contact-item"
+                  onClick={() => trackEvent('github_click', { url: site.github })}
+                >
                   <span className="contact-item-icon" aria-hidden="true">⌥</span>
                   <span>GitHub</span>
                 </a>
               )}
               {site.twitter && (
-                <a href={site.twitter} target="_blank" rel="noopener noreferrer" className="contact-item">
+                <a
+                  href={site.twitter}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="contact-item"
+                  onClick={() => trackEvent('external_link_click', { destination: 'Twitter', url: site.twitter })}
+                >
                   <span className="contact-item-icon" aria-hidden="true">✗</span>
                   <span>Twitter / X</span>
                 </a>

@@ -81,11 +81,16 @@ export function sendContactMessage(data) {
   });
 }
 
+import { trackEvent } from './tracker.js';
+
 /**
  * Downloads the currently active resume PDF from the backend
  * Triggers a native browser file download named "Amisha_pandey_Resume.pdf"
  */
 export async function downloadActiveResume() {
+  // Track resume download event
+  trackEvent('resume_download');
+
   const downloadUrl = (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'))
     ? 'http://localhost:3001/api/public/resume/download'
     : '/api/public/resume/download';
@@ -377,4 +382,13 @@ export function replyToMessage(id, replyText) {
 
 export function deleteMessage(id) {
   return request(`/admin/messages/${id}`, { method: 'DELETE' });
+}
+
+// Admin Analytics
+export function fetchAdminAnalyticsOverview(period = '7d') {
+  return request(`/admin/analytics/overview?period=${encodeURIComponent(period)}`);
+}
+
+export function clearAdminAnalytics() {
+  return request('/admin/analytics/clear', { method: 'POST' });
 }

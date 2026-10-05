@@ -1,5 +1,6 @@
 import React from 'react';
 import ScrollReveal from '../ui/ScrollReveal';
+import { trackEvent } from '../../api/tracker.js';
 
 export default function ProjectsSection({ section, data }) {
   const projects = data?.projects || [];
@@ -30,6 +31,13 @@ export default function ProjectsSection({ section, data }) {
                 <ScrollReveal key={project.id} delay={i * 60}>
                   <article
                     className={`project-card ${project.is_featured ? 'project-card--featured' : ''}`}
+                    onClick={() => {
+                      trackEvent('project_view', {
+                        projectId: project.id,
+                        projectTitle: project.title,
+                        projectSlug: project.slug,
+                      });
+                    }}
                   >
                     {project.image && (
                       <div className="project-image-wrap">
@@ -84,6 +92,18 @@ export default function ProjectsSection({ section, data }) {
                             href={liveLink}
                             target="_blank"
                             rel="noopener noreferrer"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              trackEvent('external_link_click', {
+                                projectId: project.id,
+                                projectTitle: project.title,
+                                url: liveLink,
+                              });
+                              trackEvent('project_view', {
+                                projectId: project.id,
+                                projectTitle: project.title,
+                              });
+                            }}
                           >
                             Live Demo ↗
                           </a>
@@ -94,6 +114,18 @@ export default function ProjectsSection({ section, data }) {
                             href={project.github_url}
                             target="_blank"
                             rel="noopener noreferrer"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              trackEvent('github_click', {
+                                projectId: project.id,
+                                projectTitle: project.title,
+                                url: project.github_url,
+                              });
+                              trackEvent('project_view', {
+                                projectId: project.id,
+                                projectTitle: project.title,
+                              });
+                            }}
                           >
                             GitHub ↗
                           </a>

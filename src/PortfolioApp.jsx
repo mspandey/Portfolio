@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import characterVideoUrl from '../character-scrub.mp4?url';
 import { fetchPublicData, downloadActiveResume } from './api/client.js';
+import { trackEvent } from './api/tracker.js';
 import AboutSection from './components/sections/AboutSection.jsx';
 import ExperienceSection from './components/sections/ExperienceSection.jsx';
 import ProjectsSection from './components/sections/ProjectsSection.jsx';
@@ -107,13 +108,32 @@ function Footer({ siteSettings }) {
         <div className="footer-brand">{name}</div>
         <nav className="footer-nav" aria-label="Footer navigation">
           {siteSettings?.github && (
-            <a href={siteSettings.github} target="_blank" rel="noopener noreferrer">GitHub</a>
+            <a
+              href={siteSettings.github}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => trackEvent('github_click', { url: siteSettings.github })}
+            >
+              GitHub
+            </a>
           )}
           {siteSettings?.linkedin && (
-            <a href={siteSettings.linkedin} target="_blank" rel="noopener noreferrer">LinkedIn</a>
+            <a
+              href={siteSettings.linkedin}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => trackEvent('linkedin_click', { url: siteSettings.linkedin })}
+            >
+              LinkedIn
+            </a>
           )}
           {siteSettings?.email && (
-            <a href={`mailto:${siteSettings.email}`}>Email</a>
+            <a
+              href={`mailto:${siteSettings.email}`}
+              onClick={() => trackEvent('external_link_click', { destination: 'email' })}
+            >
+              Email
+            </a>
           )}
         </nav>
         <p className="footer-copy">© {year} {name}. All rights reserved.</p>
@@ -139,6 +159,14 @@ export default function PortfolioApp() {
   useCanvasCharacter(canvasRef, setSmiling);
   useMagneticCursor(cursorDotRef, cursorAuraRef);
   useScrollReveal();
+
+  // Track initial page view deferred (zero interference with hero or render)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      trackEvent('page_view');
+    }, 250);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Fetch all portfolio data from DB once
   useEffect(() => {

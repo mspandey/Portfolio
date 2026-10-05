@@ -287,6 +287,26 @@ export function initDatabase() {
       ip_address TEXT DEFAULT '',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS analytics_events (
+      id TEXT PRIMARY KEY,
+      event_type TEXT NOT NULL,
+      session_id TEXT NOT NULL,
+      visitor_id TEXT NOT NULL,
+      page_path TEXT DEFAULT '/',
+      project_id INTEGER DEFAULT NULL,
+      project_slug TEXT DEFAULT '',
+      project_title TEXT DEFAULT '',
+      referrer TEXT DEFAULT '',
+      referrer_domain TEXT DEFAULT '',
+      device_type TEXT DEFAULT 'desktop',
+      country TEXT DEFAULT '',
+      metadata_json TEXT DEFAULT '{}',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_analytics_created ON analytics_events(created_at);
+    CREATE INDEX IF NOT EXISTS idx_analytics_event_type ON analytics_events(event_type);
+    CREATE INDEX IF NOT EXISTS idx_analytics_visitor ON analytics_events(visitor_id);
   `);
 
   // Migrations for education table columns

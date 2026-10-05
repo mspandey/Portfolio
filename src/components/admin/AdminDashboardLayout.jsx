@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import AdminDashboard from './sections/AdminDashboard';
+import AdminAnalytics from './sections/AdminAnalytics';
 import AdminHero from './sections/AdminHero';
 import AdminAbout from './sections/AdminAbout';
 import AdminProjects from './sections/AdminProjects';
@@ -17,6 +18,7 @@ import AdminMessages from './sections/AdminMessages';
 
 const NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', icon: '◈' },
+  { id: 'analytics', label: 'Analytics', icon: '📈' },
   { id: 'messages', label: 'Messages', icon: '✉' },
   { id: 'hero', label: 'Hero', icon: '⬡' },
   { id: 'about', label: 'About', icon: '◐' },
@@ -34,6 +36,7 @@ const NAV_ITEMS = [
 
 const PANEL_MAP = {
   dashboard: AdminDashboard,
+  analytics: AdminAnalytics,
   messages: AdminMessages,
   hero: AdminHero,
   about: AdminAbout,

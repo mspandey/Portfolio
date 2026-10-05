@@ -134,7 +134,8 @@ The built-in dashboard accessible at `/admin` empowers complete content governan
 
 | Panel | Functionality |
 |---|---|
-| **Dashboard** | Real-time counts of published projects, experiences, certifications, active resumes, and unread inquiries. |
+| **Dashboard** | Overview of published projects, experiences, certifications, active resumes, and unread inquiries. |
+| **Analytics** | Real-time privacy-conscious portfolio engagement, visitor charts, recruiter signals, traffic sources, and project views. |
 | **Site Settings** | Manage owner name, professional title, contact email, social profile URLs, and global SEO meta tags. |
 | **Hero Stage** | Customize greeting copy, tagline, call-to-action button labels, target URLs, and animation toggles. |
 | **About Section** | Edit biography paragraphs, professional summary, profile picture, and numerical accomplishment stats. |
@@ -148,6 +149,22 @@ The built-in dashboard accessible at `/admin` empowers complete content governan
 | **Media Library** | Upload, preview, copy URLs, and organize image and document assets stored in cloud buckets. |
 | **Section Ordering** | Drag-and-drop ordering interface (`@dnd-kit`) to visually customize the layout of the public portfolio. |
 | **Messages & SMTP** | Review visitor contact submissions and reply directly from the dashboard via configured SMTP email transport. |
+
+---
+
+## Portfolio Analytics & Engagement Tracking
+
+A custom, privacy-first analytics and engagement tracking engine integrated directly into the Admin CMS:
+
+- **What is Tracked**:
+  - **Unique Visitors & Impressions**: Anonymous UUID session and visitor tracking that deduplicates repeated page refreshes.
+  - **Recruiter & Intent Signals**: Actionable indicators measuring tangible professional interest (Resume Downloads, LinkedIn Clicks, GitHub Clicks, Project Interactions, Contact Form Submissions).
+  - **Project Engagement**: Interaction rankings tracking which projects visitors actively inspect and explore.
+  - **Traffic Sources & Device Distribution**: Identification of top referrers (e.g., LinkedIn, GitHub, Google, Direct) and screen categories (Desktop, Mobile, Tablet).
+  - **Privacy-Conscious Geolocation**: High-level country resolution without storing precise addresses or IP addresses.
+- **Strict Admin Exclusion**: Visits made while logged in as administrator or originating from the admin panel are automatically excluded from all public metrics via both client-side guards and server-side JWT verification.
+- **Zero Mock Data**: All numbers in the dashboard represent actual events, falling back gracefully to `0` or `"No data yet"` when no activity is recorded.
+- **Non-Blocking Architecture**: Public tracking uses asynchronous `navigator.sendBeacon` and `keepalive` requests deferred after initial render, ensuring zero impact on the 60 FPS hero canvas, page load speed, or responsive interactions.
 
 ---
 

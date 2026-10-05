@@ -339,6 +339,33 @@ CREATE POLICY "Public Read Media" ON media FOR SELECT USING (true);
 -- 2. Public Insert for Contact Messages
 CREATE POLICY "Public Insert Messages" ON messages FOR INSERT WITH CHECK (true);
 
+-- -----------------------------------------------------------------------------
+-- 13. ANALYTICS EVENTS TABLE
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS analytics_events (
+    id TEXT PRIMARY KEY,
+    event_type TEXT NOT NULL,
+    session_id TEXT NOT NULL,
+    visitor_id TEXT NOT NULL,
+    page_path TEXT DEFAULT '/',
+    project_id INTEGER,
+    project_slug TEXT DEFAULT '',
+    project_title TEXT DEFAULT '',
+    referrer TEXT DEFAULT '',
+    referrer_domain TEXT DEFAULT '',
+    device_type TEXT DEFAULT 'desktop',
+    country TEXT DEFAULT '',
+    metadata_json JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_analytics_created ON analytics_events(created_at);
+CREATE INDEX IF NOT EXISTS idx_analytics_event_type ON analytics_events(event_type);
+CREATE INDEX IF NOT EXISTS idx_analytics_visitor ON analytics_events(visitor_id);
+
+ALTER TABLE analytics_events ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public Insert Analytics Events" ON analytics_events FOR INSERT WITH CHECK (true);
+
 -- 3. Service Role (Server-side) Full Access for All Tables
 -- (Supabase service role automatically bypasses RLS, ensuring server-side CRUD functions cleanly)
 

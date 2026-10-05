@@ -9,6 +9,7 @@ import { initDatabase } from './database.js';
 import authRoutes from './routes/auth.js';
 import publicRoutes from './routes/public.js';
 import adminRoutes from './routes/admin.js';
+import analyticsRoutes from './routes/analytics.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -37,7 +38,9 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // API Routes
 app.use('/api/admin/auth', authRoutes);
 app.use('/api/admin', authRoutes);
+app.use('/api/admin/analytics', analyticsRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/analytics', analyticsRoutes);
 app.use('/api/public', publicRoutes);
 app.use('/api', publicRoutes); // handles /api/resumes/active, /api/contact
 

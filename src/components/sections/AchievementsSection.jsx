@@ -1,17 +1,24 @@
 import React, { useState } from 'react';
 import ScrollReveal from '../ui/ScrollReveal';
+import { trackEvent } from '../../api/tracker.js';
 
 export default function AchievementsSection({ data }) {
   const achievements = data?.achievements || [];
   const [expandedId, setExpandedId] = useState(null);
   const [downloadingId, setDownloadingId] = useState(null);
 
-  const toggleExpand = (id) => {
-    setExpandedId((prev) => (prev === id ? null : id));
+  const toggleExpand = (ach) => {
+    const isOpening = expandedId !== ach.id;
+    setExpandedId((prev) => (prev === ach.id ? null : ach.id));
+    if (isOpening) {
+      trackEvent('certificate_view', { achievement_id: ach.id, title: ach.title });
+      trackEvent('achievement_expand', { achievement_id: ach.id, title: ach.title });
+    }
   };
 
   const handleDownloadCertificate = async (ach) => {
     if (!ach?.certificate_url) return;
+    trackEvent('certificate_download', { achievement_id: ach.id, title: ach.title });
     setDownloadingId(ach.id);
 
     const isPdf = ach.certificate_url.toLowerCase().includes('.pdf');
@@ -140,7 +147,7 @@ export default function AchievementsSection({ data }) {
                           <button
                             type="button"
                             className={`achievement-action-btn achievement-action-btn--cert ${isExpanded ? 'is-active' : ''}`}
-                            onClick={() => toggleExpand(ach.id)}
+                            onClick={() => toggleExpand(ach)}
                             aria-expanded={isExpanded}
                           >
                             {isExpanded ? 'Hide Certificate ▴' : 'View Certificate ▾'}
@@ -153,6 +160,13 @@ export default function AchievementsSection({ data }) {
                             target="_blank"
                             rel="noopener noreferrer"
                             className="achievement-action-btn achievement-action-btn--ext"
+                            onClick={() => {
+                              if (isLinkedIn) {
+                                trackEvent('linkedin_click', { url: ach.external_url, title: ach.title });
+                              } else {
+                                trackEvent('external_link_click', { url: ach.external_url, title: ach.title });
+                              }
+                            }}
                           >
                             {extLabel}
                           </a>
