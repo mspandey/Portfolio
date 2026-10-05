@@ -1,0 +1,87 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+.vite/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+.env.local
+.env.development
+.env.development.local
+.env.test
+.env.test.local
+.env.production
+.env.production.local
+.env*.local
+.env.backup
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE / Editor
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+.temp/
+
+# Coverage
+coverage/
+.nyc_output/
+
+# TypeScript
+*.tsbuildinfo
+
+# Local development
+.vercel/
+.netlify/
+
+# Python (if your portfolio has any Python/AI backend)
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Secrets / credentials
+*.pem
+*.key
+credentials.json
+service-account.json
+
+# IDE / Tool Telemetry & Test Artifacts
+.copilot/
+scripts/*.png
+# Database runtime files
+*.db
+*.db-shm
+*.db-wal
+server/*.db
+server/*.db-shm
+server/*.db-wal
+
+# Uploaded files and media
+server/uploads/
+uploads/
