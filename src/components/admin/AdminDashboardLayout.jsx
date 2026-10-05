@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import AdminDashboard from './sections/AdminDashboard';
 import AdminAnalytics from './sections/AdminAnalytics';
@@ -52,17 +52,41 @@ const PANEL_MAP = {
   settings: AdminSettings,
 };
 
+function getPanelFromPath(pathname) {
+  const clean = pathname.replace(/^\/admin\/?/, '').split('/')[0].toLowerCase();
+  if (!clean || clean === 'dashboard' || clean === 'login') return 'dashboard';
+  if (PANEL_MAP[clean]) return clean;
+  return 'dashboard';
+}
+
 export default function AdminDashboardLayout() {
   const { user, logout } = useAuth();
-  const [activePanel, setActivePanel] = useState('dashboard');
+  const [activePanel, setActivePanel] = useState(() => getPanelFromPath(window.location.pathname));
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const ActiveComponent = PANEL_MAP[activePanel] || AdminDashboard;
+  useEffect(() => {
+    const handlePopState = () => {
+      setActivePanel(getPanelFromPath(window.location.pathname));
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   const handleNavClick = (id) => {
     setActivePanel(id);
     setSidebarOpen(false);
+    const targetUrl = id === 'dashboard' ? '/admin' : `/admin/${id}`;
+    if (window.location.pathname !== targetUrl) {
+      window.history.pushState(null, '', targetUrl);
+    }
   };
+
+  const handleLogout = async () => {
+    await logout();
+    window.history.replaceState(null, '', '/admin/login');
+  };
+
+  const ActiveComponent = PANEL_MAP[activePanel] || AdminDashboard;
 
   return (
     <div className="admin-layout">
@@ -101,7 +125,7 @@ export default function AdminDashboardLayout() {
             </span>
             <span className="admin-username">{user?.username || 'Admin'}</span>
           </div>
-          <button className="admin-logout-btn" onClick={logout} title="Sign out">
+          <button className="admin-logout-btn" onClick={handleLogout} title="Sign out">
             ↩
           </button>
         </div>

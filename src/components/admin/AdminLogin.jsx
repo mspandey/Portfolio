@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 
-export default function AdminLogin() {
+export default function AdminLogin({ onLoginSuccess }) {
   const { login } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -18,6 +18,10 @@ export default function AdminLogin() {
     setError('');
     try {
       await login(username, password);
+      window.history.replaceState(null, '', '/admin');
+      if (onLoginSuccess) {
+        onLoginSuccess();
+      }
     } catch (err) {
       setError(err.message || 'Login failed. Please check your credentials.');
     } finally {
@@ -44,7 +48,7 @@ export default function AdminLogin() {
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               placeholder="Enter username"
-              autoComplete="off"
+              autoComplete="username"
               autoFocus
               required
             />
@@ -58,7 +62,7 @@ export default function AdminLogin() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Enter password"
-              autoComplete="off"
+              autoComplete="current-password"
               required
             />
           </div>

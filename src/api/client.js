@@ -57,6 +57,14 @@ async function request(url, options = {}) {
   }
 
   if (!response.ok) {
+    if (response.status === 401 && typeof window !== 'undefined' && window.location.pathname.startsWith('/admin') && window.location.pathname !== '/admin/login') {
+      localStorage.removeItem('admin_token');
+      // If session expired during an admin action, redirect to /admin/login
+      if (!window.location.pathname.includes('/auth/')) {
+        window.history.replaceState(null, '', '/admin/login');
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      }
+    }
     if (data && (data.error || data.message)) {
       throw new Error(data.error || data.message);
     }

@@ -20,7 +20,7 @@ async function verifyAdminCredentials(username, password) {
   const envPass = (process.env.ADMIN_PASSWORD || process.env.TEST_ADMIN_PASSWORD || '').trim();
 
   if (envUser && envPass && cleanUser === envUser && cleanPass === envPass) {
-    return { id: 'admin-env', username: process.env.ADMIN_USERNAME || process.env.TEST_ADMIN_EMAIL || cleanUser };
+    return { id: 'admin-env', username: process.env.ADMIN_USERNAME || process.env.TEST_ADMIN_EMAIL || cleanUser, role: 'admin' };
   }
 
   // 2. Check Supabase admin_users table if configured
@@ -36,7 +36,7 @@ async function verifyAdminCredentials(username, password) {
       if (!error && data && data.password_hash) {
         const isValid = bcrypt.compareSync(cleanPass, data.password_hash);
         if (isValid) {
-          return { id: data.id, username: data.username };
+          return { id: data.id, username: data.username, role: data.role || 'admin' };
         }
       }
     } catch (supaErr) {
@@ -51,7 +51,7 @@ async function verifyAdminCredentials(username, password) {
       if (user && user.password_hash) {
         const isValid = bcrypt.compareSync(cleanPass, user.password_hash);
         if (isValid) {
-          return { id: user.id, username: user.username };
+          return { id: user.id, username: user.username, role: user.role || 'admin' };
         }
       }
     } catch (dbErr) {
@@ -68,17 +68,17 @@ router.post(['/login', '/auth/login'], async (req, res) => {
     const { username, password } = req.body || {};
 
     if (!username || !password) {
-      return res.status(400).json({ success: false, error: 'Username and password are required.' });
+      return res.status(400).json({ error: 'Bad Request', message: 'Username and password are required.' });
     }
 
     const verifiedUser = await verifyAdminCredentials(username, password);
 
-    if (!verifiedUser) {
-      return res.status(401).json({ success: false, error: 'Invalid username or password.' });
+    if (!verifiedUser || verifiedUser.role !== 'admin') {
+      return res.status(401).json({ error: 'Unauthorized', message: 'Invalid username or password.' });
     }
 
     const token = jwt.sign(
-      { id: verifiedUser.id, username: verifiedUser.username },
+      { id: verifiedUser.id, username: verifiedUser.username, role: verifiedUser.role || 'admin' },
       JWT_SECRET,
       { expiresIn: '7d' }
     );
@@ -98,11 +98,12 @@ router.post(['/login', '/auth/login'], async (req, res) => {
       user: {
         id: verifiedUser.id,
         username: verifiedUser.username,
+        role: verifiedUser.role || 'admin',
       },
     });
   } catch (err) {
     console.error('Error during admin login:', err);
-    return res.status(500).json({ success: false, error: 'Internal server error during authentication.' });
+    return res.status(500).json({ error: 'Internal Server Error', message: 'Authentication failed.' });
   }
 });
 
@@ -110,7 +111,11 @@ router.post(['/login', '/auth/login'], async (req, res) => {
 router.get(['/me', '/auth/me'], authenticateAdmin, (req, res) => {
   return res.json({
     success: true,
-    user: req.admin,
+    user: {
+      id: req.admin.id,
+      username: req.admin.username,
+      role: req.admin.role,
+    },
   });
 });
 
