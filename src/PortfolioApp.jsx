@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import characterVideoUrl from '../character-scrub.mp4?url';
 import { fetchPublicData, downloadActiveResume } from './api/client.js';
 import { trackEvent } from './api/tracker.js';
 import AboutSection from './components/sections/AboutSection.jsx';

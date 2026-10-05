@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, useState } from 'react';
-import characterVideoUrl from '../../../character-scrub.mp4?url';
 import useCanvasCharacter from './useCanvasCharacter.js';
 import { downloadActiveResume } from '../../api/client.js';
 
