@@ -65,8 +65,17 @@ async function request(url, options = {}) {
         window.dispatchEvent(new PopStateEvent('popstate'));
       }
     }
-    if (data && (data.error || data.message)) {
-      throw new Error(data.error || data.message);
+    if (data && (data.message || data.error)) {
+      throw new Error(data.message || data.error);
+    }
+    if (response.status === 401) {
+      throw new Error('Invalid username or password.');
+    }
+    if (response.status === 403) {
+      throw new Error('Forbidden: Administrator privileges required.');
+    }
+    if (response.status >= 500) {
+      throw new Error('Server error. Please try again later.');
     }
     if (contentType.includes('text/html') || text.includes('<!DOCTYPE') || text.includes('<html')) {
       throw new Error(`Server returned an unexpected HTML response (${response.status}). Check the API route.`);
